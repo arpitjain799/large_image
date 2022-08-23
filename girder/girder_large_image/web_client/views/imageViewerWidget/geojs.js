@@ -144,10 +144,10 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
     _postRender: function () {
     },
 
-    frameUpdate: function (frame) {
+    frameUpdate: function (frame, style) {
         if (this._frame === undefined) {
             // don't set up layers until the we access the first non-zero frame
-            if (frame === 0) {
+            if (frame === 0 && !style) {
                 return;
             }
             this._frame = 0;
@@ -163,7 +163,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
             }
         }
         this._nextframe = frame;
-        if (frame !== this._frame && !this._updating) {
+        if (frame !== this._frame && !this._updating || (frame === this._frame && style)) {
             this._frame = frame;
             this.trigger('g:imageFrameChanging', this, frame);
             let quadLoaded = ((this._layer.setFrameQuad || {}).status || {}).loaded;
@@ -172,7 +172,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
                     this.viewer.deleteLayer(this._layer2);
                     delete this._layer2;
                 }
-                this._layer.url(this.getFrameAndUrl().url);
+                this._layer.url(this.getFrameAndUrl(style).url);
                 this._layer.setFrameQuad(frame);
                 this._layer.frame = frame;
                 this.trigger('g:imageFrameChanged', this, frame);
@@ -181,7 +181,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
 
             this._updating = true;
             this.viewer.onIdle(() => {
-                this._layer2.url(this.getFrameAndUrl().url);
+                this._layer2.url(this.getFrameAndUrl(style).url);
                 this._layer2.setFrameQuad(frame);
                 this._layer2.frame = frame;
                 this.viewer.onIdle(() => {
@@ -199,12 +199,17 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         }
     },
 
-    getFrameAndUrl: function () {
+    getFrameAndUrl: function (style) {
         const frame = this._frame || 0;
         let url = this._baseurl || this._layer.url();
-        if (frame) {
+        if (frame && !style) {
             url += (url.indexOf('?') >= 0 ? '&' : '?') + 'frame=' + frame;
+        } else if (style) {
+            const encodedStyle = encodeURIComponent(JSON.stringify(style));
+            const channelString = (url.indexOf('?') >= 0 ? '&' : '?') + 'style=' + encodedStyle;
+            url += channelString;
         }
+        console.log(url);
         return {
             frame: frame,
             url: url

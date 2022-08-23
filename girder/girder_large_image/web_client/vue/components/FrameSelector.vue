@@ -23,18 +23,7 @@ export default Vue.extend({
             ],
             currentCompositeModeId: 0,
             compositeChannelInfo: {},
-            compositedFrames: [],
-            // currentChannelInfo
-            // Use an object to keep track of current channel info (color, etc.)
-            // Use this to bind to controls. Read/write from the big list of channel
-            // info when the current selection changes.
-            currentChannelInfo: {
-                channel: 0,
-                low: 0,
-                high: 0,
-                color: null
-            },
-            allChannelInfo: {}
+            compositedFrames: {},
         };
 
     },
@@ -60,20 +49,37 @@ export default Vue.extend({
                     channel: frameName,
                     color: '#f00'
                 });
-                this.compositedFrames.push(frameName);
             }
         }
     },
     methods: {
-        singleModeUpdateChannel(newChannel) {
-            this.indexInfo['IndexC'].current = newChannel;
-            let newCurrentFrame = 0;
-            Object.keys(this.indexInfo).forEach((key) => {
-                const info = this.indexInfo[key];
-                newCurrentFrame += info.current * info.stride;
+        buildStyleArray() {
+            const activeChannels = this.indexInfo['IndexC'].activeFrames;
+            const defaultColor = '#ffffff';
+            const styleArray = [];
+            _.forEach(activeChannels, (channel) => {
+                const color = channel.falseColor ? channel.falseColor : defaultColor;
+                const styleEntry = {
+                    frame: channel.channelNumber,
+                };
+                if (channel.falseColor) {
+                    styleEntry['palette'] = channel.falseColor;
+                }
+                styleArray.push(styleEntry);
             });
-            this.currentFrame = newCurrentFrame;
-            this.frameUpdate(this.currentFrame);
+            return { bands: styleArray };
+        },
+        singleModeUpdateChannel(activeChannelInfo) {
+            this.indexInfo['IndexC'].activeFrames = activeChannelInfo;
+            const useStyle = activeChannelInfo.length > 1 || activeChannelInfo[0].falseColorEnabled || activeChannelInfo[0].min || activeChannelInfo[0].max;
+            if (useStyle) {
+                const styleArray = this.buildStyleArray();
+                console.log(styleArray);
+                this.frameUpdate(this.currentFrame, styleArray);
+            } else {
+                console.log(activeChannelInfo[0].channelNumber);
+                this.frameUpdate(activeChannelInfo[0].channelNumber);
+            }
         },
         compositeModeUpdateChannel(compositeChannelInfo) {
             console.log(compositeChannelInfo);
@@ -123,7 +129,8 @@ export default Vue.extend({
             this.indexInfo[indexName] = {
                 current: 0,
                 range: this.imageMetadata.IndexRange[indexName],
-                stride: this.imageMetadata.IndexStride[indexName]
+                stride: this.imageMetadata.IndexStride[indexName],
+                activeFrames: []
             };
         });
         if (this.imageMetadata.channels) {
