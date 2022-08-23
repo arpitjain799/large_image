@@ -31,10 +31,6 @@ export default {
                 Object.keys(this.compositeChannelInfo).forEach((channel) => {
                     this.compositeChannelInfo[channel].enabled = (channel === newChannelName);
                 });
-                const updateChannelInfo = {
-                    channel: this.currentChannelNumber,
-                    options: newChannelInfo
-                };
                 const activeFrames = _.filter(this.compositeChannelInfo, (channel) => channel.enabled);
                 console.log(activeFrames);
                 this.$emit('updateFrameSingle', activeFrames);
@@ -122,6 +118,24 @@ export default {
                 name="colorStringEntry"
                 :disabled="!currentChannelFalseColorEnabled"
                 v-model="currentChannelFalseColor"
+                @change.prevent="updateCurrentChannelOptions"
+            >
+            <label for="minValue">Min: </label>
+            <input
+                type="number"
+                step="0.001"
+                min="0"
+                max="1"
+                v-model="currentChannelMin"
+                @change.prevent="updateCurrentChannelOptions"
+            >
+            <label for="minValue">Max: </label>
+            <input
+                type="number"
+                step="0.001"
+                min="0"
+                max="1"
+                v-model="currentChannelMax"
                 @change.prevent="updateCurrentChannelOptions"
             >
         </div>

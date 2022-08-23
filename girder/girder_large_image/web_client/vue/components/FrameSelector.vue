@@ -55,16 +55,17 @@ export default Vue.extend({
     methods: {
         buildStyleArray() {
             const activeChannels = this.indexInfo['IndexC'].activeFrames;
-            const defaultColor = '#ffffff';
+            console.log(this.indexInfo['IndexC'].activeFrames);
             const styleArray = [];
             _.forEach(activeChannels, (channel) => {
-                const color = channel.falseColor ? channel.falseColor : defaultColor;
                 const styleEntry = {
                     frame: channel.channelNumber,
                 };
                 if (channel.falseColor) {
                     styleEntry['palette'] = channel.falseColor;
                 }
+                styleEntry['min'] = 0 + 255 * channel.min;
+                styleEntry['max'] = 255 - 255 * channel.max
                 styleArray.push(styleEntry);
             });
             return { bands: styleArray };
