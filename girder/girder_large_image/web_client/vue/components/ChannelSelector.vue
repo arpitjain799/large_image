@@ -10,6 +10,7 @@ export default {
             currentChannelFalseColor: '',
             currentChannelMin: 0,
             currentChannelMax: 0,
+            currentChannelEnabled: true,
             currentChannelNumber: this.channelMap[this.initialChannelName],
             modes: [
                 { id: 0, name: 'Single' },
@@ -19,6 +20,11 @@ export default {
         }
     },
     methods: {
+        preventDisableChannel() { const numChannelsEnabled = _.reduce(Object.keys(this.compositeChannelInfo), (memo, channelKey) => {
+                return memo + (this.compositeChannelInfo[channelKey].enabled ? 1 : 0);
+            }, 0);
+            return this.currentModeId === 1 && numChannelsEnabled === 1 && this.currentChannelEnabled;
+        },
         updateChannel() {
             const newChannelName = this.channels[this.currentChannelNumber];
             const newChannelInfo = this.compositeChannelInfo[newChannelName];
@@ -26,16 +32,18 @@ export default {
             this.currentChannelFalseColor = newChannelInfo.falseColor;
             this.currentChannelMin = newChannelInfo.min;
             this.currentChannelMax = newChannelInfo.max;
+            this.currentChannelEnabled = newChannelInfo.enabled;
 
             if (this.currentModeId === 0) {
                 Object.keys(this.compositeChannelInfo).forEach((channel) => {
                     this.compositeChannelInfo[channel].enabled = (channel === newChannelName);
                 });
+                this.currentChannelEnabled = true;
                 const activeFrames = _.filter(this.compositeChannelInfo, (channel) => channel.enabled);
-                console.log(activeFrames);
                 this.$emit('updateFrameSingle', activeFrames);
             } else {
-                this.$emit('updateFrameSingle', this.compositeChannelInfo);
+                const activeFrames = _.filter(this.compositeChannelInfo, (channel) => channel.enabled);
+                this.$emit('updateFrameSingle', activeFrames);
             }
         },
         updateCurrentChannelOptions() {
@@ -44,18 +52,16 @@ export default {
             this.compositeChannelInfo[channelName]['falseColor'] = this.currentChannelFalseColor;
             this.compositeChannelInfo[channelName]['min'] = this.currentChannelMin;
             this.compositeChannelInfo[channelName]['max'] = this.currentChannelMax;
+            this.compositeChannelInfo[channelName]['enabled'] = this.currentChannelEnabled;
             this.updateChannel();
         }
     },
     watch: {
-        currentChannelNumber(newVal, oldVal) {
-            console.log({ newVal, oldVal });
-        }
     },
     mounted() {
         this.channels.forEach((channel) => {
             this.compositeChannelInfo[channel] = {
-                channelNumber: this.channelMap[channel],
+                number: this.channelMap[channel],
                 falseColorEnabled: false,
                 falseColor: '',
                 min: 0,
@@ -105,6 +111,20 @@ export default {
             </select>
         </div>
         <div class="false-color-controls">
+            <label
+                v-if="currentModeId === 1"
+                for="enabled"
+            >
+                Enabled:
+            </label>
+            <input
+                v-if="currentModeId === 1"
+                type="checkbox"
+                name="enable"
+                :disabled="preventDisableChannel()"
+                v-model="currentChannelEnabled"
+                @change.prevent="updateCurrentChannelOptions"
+            >
             <label for="enableFalseColor">False color: </label>
             <input
                 type="checkbox"
@@ -112,8 +132,14 @@ export default {
                 v-model="currentChannelFalseColorEnabled"
                 @change.prevent="updateCurrentChannelOptions"
             >
-            <label for="colorStringEntry">Color: </label>
+            <label
+                for="colorStringEntry"
+                v-if="currentChannelFalseColorEnabled"
+            >
+                Color:
+            </label>
             <input
+                v-if="currentChannelFalseColorEnabled"
                 type="text"
                 name="colorStringEntry"
                 :disabled="!currentChannelFalseColorEnabled"
