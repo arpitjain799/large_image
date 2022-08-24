@@ -1,10 +1,11 @@
 <script>
 import Vue from 'vue';
 import ChannelSelector from './ChannelSelector.vue';
+import IndexSelector from './IndexSelector.vue';
 
 export default Vue.extend({
     props: ['imageMetadata', 'frameUpdate'],
-    components: { ChannelSelector },
+    components: { ChannelSelector, IndexSelector },
     data() {
         return {
             currentFrame: 0,
@@ -59,46 +60,48 @@ export default Vue.extend({
             const styleArray = [];
             _.forEach(activeChannels, (channel) => {
                 const styleEntry = {
-                    frame: channel.channelNumber,
+                    frame: channel.number,
                 };
                 if (channel.falseColor) {
                     styleEntry['palette'] = channel.falseColor;
                 }
-                styleEntry['min'] = 0 + 255 * channel.min;
-                styleEntry['max'] = 255 - 255 * channel.max
+                // styleEntry['min'] = 0 + 255 * channel.min;
+                // styleEntry['max'] = 255 - 255 * channel.max
                 styleArray.push(styleEntry);
             });
             return { bands: styleArray };
         },
         singleModeUpdateChannel(activeChannelInfo) {
             this.indexInfo['IndexC'].activeFrames = activeChannelInfo;
-            const useStyle = activeChannelInfo.length > 1 || activeChannelInfo[0].falseColorEnabled || activeChannelInfo[0].min || activeChannelInfo[0].max;
+            const useStyle = (activeChannelInfo.length > 1
+                              || activeChannelInfo[0].falseColorEnabled
+                              || activeChannelInfo[0].min
+                              || activeChannelInfo[0].max);
             if (useStyle) {
                 const styleArray = this.buildStyleArray();
-                console.log(styleArray);
                 this.frameUpdate(this.currentFrame, styleArray);
             } else {
-                console.log(activeChannelInfo[0].channelNumber);
-                this.frameUpdate(activeChannelInfo[0].channelNumber);
+                this.frameUpdate(activeChannelInfo[0].number);
             }
         },
         compositeModeUpdateChannel(compositeChannelInfo) {
             console.log(compositeChannelInfo);
         },
         updateFrameByAxes(event) {
-            const target = event.target;
-            const name = target.name;
-            const newValue = target.valueAsNumber;
-            this.indexInfo[name].current = newValue;
-            let newCurrentFrame = 0;
-            Object.keys(this.indexInfo).forEach((key) => {
-                const info = this.indexInfo[key];
-                newCurrentFrame += info.current * info.stride;
-            });
-            this.currentFrame = newCurrentFrame;
-
-            // attempt to call the outside method to update frame
-            this.frameUpdate(this.currentFrame);
+            const activeChannelFrames = this.indexInfo['IndexC'].activeFrames;
+            if (!activeChannelFrames) {
+                // do the math
+            } else {
+                const useStyle = (activeChannelFrames.length > 1
+                                || activeChannelFrames.falseColorEnabled
+                                || activeChannelFrames.min
+                                || activeChannelFrames.max);
+                if (!useStyle) {
+                    // do the math
+                } else {
+                    const styleArray = this.buildStyleArray();
+                }
+            }
         },
         updateFrame(event) {
             // update 'current' property of frameInfo objects
@@ -198,114 +201,32 @@ export default Vue.extend({
                 @updateFrameSingle="singleModeUpdateChannel"
             >
             </channel-selector>
-            <!--
-            <div class="image-frame-index-slider image-frame-channel-slider">
-                <div class="image-frame-slider">
-                    <label for="IndexC">Channel: </label>
-                    <input
-                        type="number"
-                        name="IndexC"
-                        min="0"
-                        :max="indexInfo['IndexC'].range - 1"
-                        :value="indexInfo['IndexC'].current"
-                        @input.prevent="updateFrameByAxes"
-                    >
-                    <input
-                        class="image-frame-slider"
-                        type="range"
-                        min="0"
-                        name="IndexC"
-                        :max="indexInfo['IndexC'].range - 1"
-                        :value="indexInfo['IndexC'].current"
-                        :disabled="currentCompositeModeId === 1"
-                        @change.prevent="updateFrameByAxes"
-                    >
-                    <div
-                        class="image-frame-composite-options"
-                    >
-                        <select
-                            v-model="currentCompositeModeId"
-                            name="compositeMode"
-                        >
-                            <option
-                                v-for="compositeMode in compositeModes"
-                                :key="compositeMode.id"
-                                :value="compositeMode.id"
-                            >
-                                {{ compositeMode.name }}
-                            </option>
-                        </select>
-                    </div>
-                </div>
-                <div class="single-channel-advanced-controls">
-                    <div class="channel-false-color-controls">
-                        <label>
-                            <input type="checkbox">
-                            False color:
-                        </label>
-                        <input
-                            type="text"
-                            @change="colorUpdated()"
-                        >
-                    </div>
-                </div>
-            </div>
-            <div
-                v-for="index in nonChannelIndices"
-                :key="index"
-                class="image-frame-index-slider"
-            >
-                <label :for="index">{{ index }}: </label>
-                <input
-                    type="number"
-                    :name="index"
-                    min="0"
-                    :max="indexInfo[index].range - 1"
-                    :value="indexInfo[index].current"
-                    :disabled="currentCompositeModeId === 1"
-                    @input.prevent="updateFrameByAxes"
-                >
-                <input
-                    class="image-frame-slider"
-                    type="range"
-                    min="0"
-                    :name="index"
-                    :max="indexInfo[index].range - 1"
-                    :value="indexInfo[index].current"
-                    :disabled="currentCompositeModeId === 1"
-                    @change.prevent="updateFrameByAxes"
-                >
+            <div v-if="currentModeId === 1">
                 <div
-                    class="image-frame-composite-options"
+                    v-for="index in nonChannelIndices"
+                    :key="index"
                 >
-                    <select
-                        v-model="currentCompositeModeId"
-                        name="compositeMode"
+                    <index-selector
+                        :indexName="index"
+                        :range="indexInfo[index].range"
+                        :stride="indexInfo[index].stride"
+                        :initialFrame="indexInfo[index].current"
+                        @updateFrame="updateFrameByAxes"
                     >
-                        <option
-                            v-for="compositeMode in compositeModes"
-                            :key="compositeMode.id"
-                            :value="compositeMode.id"
-                        >
-                            {{ compositeMode.name }}
-                        </option>
-                    </select>
+                    </index-selector>
                 </div>
             </div>
-            -->
         </div>
     </div>
 </template>
 
 <style scoped>
 .image-frame-simple-control {
-    border: 1px solid black;
     display: flex;
     flex-direction: row;
 }
 
 .image-frame-index-slider {
-    border: 1px solid black;
     display: flex;
     flex-direction: column;
 }
