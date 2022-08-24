@@ -55,12 +55,18 @@ export default Vue.extend({
     },
     methods: {
         buildStyleArray() {
+            // TODO: support selecting more than one Z/T/XY index value at a time
+            // For now, assume channels can be composite and other indices
+            // will be limited to one value.
             const activeChannels = this.indexInfo['IndexC'].activeFrames;
-            console.log(this.indexInfo['IndexC'].activeFrames);
             const styleArray = [];
             _.forEach(activeChannels, (channel) => {
+                let frame = channel.number;
+                _.forEach(this.nonChannelIndices, (index) => {
+                    frame += this.indexInfo[index].current * this.indexInfo[index].stride;
+                });
                 const styleEntry = {
-                    frame: channel.number,
+                    frame: frame,
                 };
                 if (channel.falseColor) {
                     styleEntry['palette'] = channel.falseColor;
@@ -73,37 +79,34 @@ export default Vue.extend({
         },
         singleModeUpdateChannel(activeChannelInfo) {
             this.indexInfo['IndexC'].activeFrames = activeChannelInfo;
-            const useStyle = (activeChannelInfo.length > 1
-                              || activeChannelInfo[0].falseColorEnabled
-                              || activeChannelInfo[0].min
-                              || activeChannelInfo[0].max);
+            this.indexInfo['IndexC'].current = activeChannelInfo[0].number;
+            this.updateFrame();
+        },
+        updateFrameByAxes(event) {
+            this.indexInfo[event.index].current = event.frame;
+            this.updateFrame();
+        },
+        updateFrame() {
+            const useStyle = (
+                this.indexInfo['IndexC'].activeFrames.length > 1
+                || this.indexInfo['IndexC'].activeFrames.falseColorEnabled
+                || this.indexInfo['IndexC'].activeFrames.min
+                || this.indexInfo['IndexC'].activeFrames.max
+            );
             if (useStyle) {
                 const styleArray = this.buildStyleArray();
                 this.frameUpdate(this.currentFrame, styleArray);
             } else {
-                this.frameUpdate(activeChannelInfo[0].number);
+                // For now, assume we have 'IndexC'
+                let nextFrame = 0;
+                _.forEach(this.indices, (index) => {
+                    const info = this.indexInfo[index];
+                    nextFrame += info.current * info.stride;
+                });
+                this.frameUpdate(nextFrame);
             }
         },
-        compositeModeUpdateChannel(compositeChannelInfo) {
-            console.log(compositeChannelInfo);
-        },
-        updateFrameByAxes(event) {
-            const activeChannelFrames = this.indexInfo['IndexC'].activeFrames;
-            if (!activeChannelFrames) {
-                // do the math
-            } else {
-                const useStyle = (activeChannelFrames.length > 1
-                                || activeChannelFrames.falseColorEnabled
-                                || activeChannelFrames.min
-                                || activeChannelFrames.max);
-                if (!useStyle) {
-                    // do the math
-                } else {
-                    const styleArray = this.buildStyleArray();
-                }
-            }
-        },
-        updateFrame(event) {
+        updateFrameSimple(event) {
             // update 'current' property of frameInfo objects
             const target = event.target;
             const newFrame = target.valueAsNumber;
@@ -113,12 +116,6 @@ export default Vue.extend({
                     this.currentFrame / this.indexInfo[key].stride) % this.indexInfo[key].range;
             });
             this.frameUpdate(newFrame);
-        },
-        toggleChannel(index) {
-            console.log(index);
-        },
-        colorUpdated() {
-            console.log('color updated');
         },
         getCurrentChannelName() {
             if (!this.indexInfo['IndexC']) {
@@ -165,7 +162,7 @@ export default Vue.extend({
                 :max="maxFrame"
                 :disabled="currentModeId === 1"
                 v-model="currentFrame"
-                @input.prevent="updateFrame"
+                @input.prevent="updateFrameSimple"
             >
             <input
                 class="image-frame-slider"
@@ -175,7 +172,7 @@ export default Vue.extend({
                 :max="maxFrame"
                 :disabled="currentModeId === 1"
                 v-model="currentFrame"
-                @change.prevent="updateFrame"
+                @change.prevent="updateFrameSimple"
             >
             <select
                 v-model="currentModeId"
