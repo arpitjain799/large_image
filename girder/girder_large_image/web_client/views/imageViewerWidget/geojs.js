@@ -205,6 +205,7 @@ var GeojsImageViewerWidget = ImageViewerWidget.extend({
         if (frame && !style) {
             url += (url.indexOf('?') >= 0 ? '&' : '?') + 'frame=' + frame;
         } else if (style) {
+            console.log(style);
             const encodedStyle = encodeURIComponent(JSON.stringify(style));
             const channelString = (url.indexOf('?') >= 0 ? '&' : '?') + 'style=' + encodedStyle;
             url += channelString;
