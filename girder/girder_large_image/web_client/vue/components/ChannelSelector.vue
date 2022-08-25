@@ -8,6 +8,7 @@ export default {
             compositeChannelInfo: {},
             currentChannelFalseColorEnabled: false,
             currentChannelFalseColor: '',
+            currentChannelMinMaxEnabled: false,
             currentChannelMin: 0,
             currentChannelMax: 0,
             currentChannelEnabled: true,
@@ -50,6 +51,7 @@ export default {
             const channelName = this.channels[this.currentChannelNumber];
             this.compositeChannelInfo[channelName]['falseColorEnabled'] = this.currentChannelFalseColorEnabled;
             this.compositeChannelInfo[channelName]['falseColor'] = this.currentChannelFalseColor;
+            this.compositeChannelInfo[channelName]['minMaxEnabled'] = this.currentChannelMinMaxEnabled;
             this.compositeChannelInfo[channelName]['min'] = this.currentChannelMin;
             this.compositeChannelInfo[channelName]['max'] = this.currentChannelMax;
             this.compositeChannelInfo[channelName]['enabled'] = this.currentChannelEnabled;
@@ -64,6 +66,7 @@ export default {
                 number: this.channelMap[channel],
                 falseColorEnabled: false,
                 falseColor: '',
+                minMaxEnabled: false,
                 min: 0,
                 max: 0,
                 enabled: channel === this.initialChannelName,
@@ -146,8 +149,20 @@ export default {
                 v-model="currentChannelFalseColor"
                 @change.prevent="updateCurrentChannelOptions"
             >
-            <label for="minValue">Min: </label>
+            <label for="enableMinMax">Show min/max value controls:</label>
             <input
+                type="checkbox"
+                name="enableMinMax"
+                v-model="currentChannelMinMaxEnabled"
+            >
+            <label
+                v-if="currentChannelMinMaxEnabled"
+                for="minValue"
+            >
+                Min:
+            </label>
+            <input
+                v-if="currentChannelMinMaxEnabled"
                 type="number"
                 step="0.001"
                 min="0"
@@ -155,8 +170,14 @@ export default {
                 v-model="currentChannelMin"
                 @change.prevent="updateCurrentChannelOptions"
             >
-            <label for="minValue">Max: </label>
+            <label
+                v-if="currentChannelMinMaxEnabled"
+                for="minValue"
+            >
+                Max:
+            </label>
             <input
+                v-if="currentChannelMinMaxEnabled"
                 type="number"
                 step="0.001"
                 min="0"
