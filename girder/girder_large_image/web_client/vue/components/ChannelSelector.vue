@@ -6,6 +6,7 @@ export default {
     data() {
         return {
             compositeChannelInfo: {},
+            enabledChannels: [],
             currentChannelFalseColorEnabled: false,
             currentChannelFalseColor: '',
             currentChannelMinMaxEnabled: false,
@@ -73,6 +74,7 @@ export default {
             };
         });
         this.currentChannelNumber = this.channelMap[this.initialChannelName];
+        this.enabledChannels.push(this.initialChannelName);
     },
 }
 
@@ -112,6 +114,27 @@ export default {
                     {{ mode.name }}
                 </option>
             </select>
+        </div>
+        <div
+            v-if="currentModeId === 1"
+            class="channel-list-controls">
+            <div
+                v-for="channel in channels"
+                :key="channel"
+                class="single-channel-options"
+            >
+                {{ channel }} {{ compositeChannelInfo[channel].enabled }}
+                <div class="checkbox">
+                    <label>
+                        <input
+                            type="checkbox"
+                            :value="channel"
+                            v-model="enabledChannels"
+                        >
+                        {{ channel }}
+                    </label>
+                </div>
+            </div>
         </div>
         <div class="false-color-controls">
             <label
