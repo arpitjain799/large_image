@@ -71,13 +71,11 @@ export default Vue.extend({
                 if (channel.falseColor) {
                     styleEntry['palette'] = channel.falseColor;
                 }
-                if (channel.minMaxEnabled) {
-                    if (channel.min !== 0) {
-                        styleEntry['min'] = 255 * parseFloat(channel.min);
-                    }
-                    if (channel.max !== 0) {
-                        styleEntry['max'] = 255 - 255 * parseFloat(channel.max);
-                    }
+                if (channel.min) {
+                    styleEntry['min'] = channel.min;
+                }
+                if (channel.max) {
+                    styleEntry['max'] = channel.max;
                 }
                 styleArray.push(styleEntry);
             });
@@ -95,7 +93,7 @@ export default Vue.extend({
         updateFrame() {
             const useStyle = (
                 this.indexInfo['IndexC'].activeFrames.length > 1
-                || this.indexInfo['IndexC'].activeFrames[0].falseColorEnabled
+                || this.indexInfo['IndexC'].activeFrames[0].falseColor
                 || this.indexInfo['IndexC'].activeFrames[0].min
                 || this.indexInfo['IndexC'].activeFrames[0].max
             );
