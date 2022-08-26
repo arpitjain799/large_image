@@ -18,7 +18,21 @@ export default {
                 { id: 0, name: 'Single' },
                 { id: 1, name: 'Composite' }
             ],
-            currentModeId: 0
+            histogramModes: [
+                { id: 0, name: 'Precision' },
+                { id: 2, name: 'Absolute Value' }
+            ],
+            currentModeId: 0,
+            currentHistogramModeId: 0,
+        }
+    },
+    watch: {
+        enabledChannels: {
+            handler(newValue, oldValue) {
+                console.log('updated enabledChannels');
+                console.log({ newValue, oldValue });
+            },
+            deep: true
         }
     },
     methods: {
@@ -41,6 +55,7 @@ export default {
                     this.compositeChannelInfo[channel].enabled = (channel === newChannelName);
                 });
                 this.currentChannelEnabled = true;
+                this.enabledChannels = [newChannelName];
                 const activeFrames = _.filter(this.compositeChannelInfo, (channel) => channel.enabled);
                 this.$emit('updateFrameSingle', activeFrames);
             } else {
@@ -48,18 +63,33 @@ export default {
                 this.$emit('updateFrameSingle', activeFrames);
             }
         },
-        updateCurrentChannelOptions() {
-            const channelName = this.channels[this.currentChannelNumber];
-            this.compositeChannelInfo[channelName]['falseColorEnabled'] = this.currentChannelFalseColorEnabled;
-            this.compositeChannelInfo[channelName]['falseColor'] = this.currentChannelFalseColor;
-            this.compositeChannelInfo[channelName]['minMaxEnabled'] = this.currentChannelMinMaxEnabled;
-            this.compositeChannelInfo[channelName]['min'] = this.currentChannelMin;
-            this.compositeChannelInfo[channelName]['max'] = this.currentChannelMax;
-            this.compositeChannelInfo[channelName]['enabled'] = this.currentChannelEnabled;
-            this.updateChannel();
+        notifyUpdateActiveFrames() {
+            const activeFrames = _.filter(this.compositeChannelInfo, (channel) => channel.enabled);
+            this.$emit('updateFrameSingle', activeFrames);
+        },
+        updateChannelColor(event, channel) {
+            const newValue = event.target.value;
+            this.compositeChannelInfo[channel].falseColor = newValue;
+            this.notifyUpdateActiveFrames();
+        },
+        updateChannelMin(event, channel) {
+            const newVal = event.target.value;
+            const newMinVal = this.currentHistogramModeId === 0 ? `min:${newVal}` : parseFloat(newVal);
+            this.compositeChannelInfo[channel].min = newMinVal;
+            this.notifyUpdateActiveFrames();
+        },
+        updateChannelMax(event, channel) {
+            const newVal = event.target.valueAsNumber;
+            const newMaxVal = this.currentHistogramModeId === 0 ? `max:${newVal}` : parseFloat(newVal);
+            this.compositeChannelInfo[channel].max = newMaxVal;
+            this.notifyUpdateActiveFrames();
+        },
+        updateActiveChannels() {
+            _.forEach(this.channels, (channel) => {
+                this.compositeChannelInfo[channel].enabled = this.enabledChannels.includes(channel);
+            })
+            this.notifyUpdateActiveFrames();
         }
-    },
-    watch: {
     },
     mounted() {
         this.channels.forEach((channel) => {
@@ -91,6 +121,7 @@ export default {
                 min="0"
                 :max="channels.length - 1"
                 v-model="currentChannelNumber"
+                :disabled="currentModeId === 1"
                 @change.prevent="updateChannel"
             >
             <input
@@ -100,6 +131,7 @@ export default {
                 min="0"
                 :max="channels.length -1"
                 v-model="currentChannelNumber"
+                :disabled="currentModeId === 1"
                 @change.prevent="updateChannel"
             >
             <select
@@ -117,97 +149,79 @@ export default {
         </div>
         <div
             v-if="currentModeId === 1"
-            class="channel-list-controls">
-            <div
-                v-for="channel in channels"
-                :key="channel"
-                class="single-channel-options"
+            class="channel-list-controls"
+        >
+            <label for="histogramMode">Histogram mode: </label>
+            <select
+                v-model="currentHistogramModeId"
+                name="histogramMode"
             >
-                {{ channel }} {{ compositeChannelInfo[channel].enabled }}
-                <div class="checkbox">
-                    <label>
-                        <input
-                            type="checkbox"
-                            :value="channel"
-                            v-model="enabledChannels"
+                <option
+                    v-for="mode in histogramModes"
+                    :key="mode.id"
+                    :value="mode.id"
+                >
+                    {{ mode.name }}
+                </option>
+            </select>
+            <div class="table-container">
+                <table id="composite-channel-table" class="table table-condensed">
+                    <thead>
+                        <tr>
+                            <th class="channel-col">Channel</th>
+                            <th class="enabled-col">Enabled?</th>
+                            <th class="color-col">Color</th>
+                            <th class="precision-col">Min</th>
+                            <th class="precision-col">Max</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="channel in channels"
+                            :key="channel"
                         >
-                        {{ channel }}
-                    </label>
-                </div>
+                            <td>{{ channel }}</td>
+                            <td>
+                                <input
+                                    type="checkbox"
+                                    :value="channel"
+                                    v-model="enabledChannels"
+                                    @change="updateActiveChannels"
+                                >
+                            </td>
+                            <td>
+                                <input
+                                    class="single-channel-color-input"
+                                    type="text"
+                                    :value="compositeChannelInfo[channel].falseColor"
+                                    @change.prevent="(event) => updateChannelColor(event, channel)"
+                                >
+                            </td>
+                            <td>
+                                <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    max="1"
+                                    :value="compositeChannelInfo[channel].min"
+                                    @change.prevent="(event) => updateChannelMin(event, channel)"
+                                >
+                            </td>
+                            <td>
+                                <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    max="1"
+                                    :value="compositeChannelInfo[channel].max"
+                                    @change.prevent="(event) => updateChannelMax(event, channel)"
+                                >
+                            </td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-        </div>
-        <div class="false-color-controls">
-            <label
-                v-if="currentModeId === 1"
-                for="enabled"
-            >
-                Enabled:
-            </label>
-            <input
-                v-if="currentModeId === 1"
-                type="checkbox"
-                name="enable"
-                :disabled="preventDisableChannel()"
-                v-model="currentChannelEnabled"
-                @change.prevent="updateCurrentChannelOptions"
-            >
-            <label for="enableFalseColor">False color: </label>
-            <input
-                type="checkbox"
-                name="enableFalseColor"
-                v-model="currentChannelFalseColorEnabled"
-                @change.prevent="updateCurrentChannelOptions"
-            >
-            <label
-                for="colorStringEntry"
-                v-if="currentChannelFalseColorEnabled"
-            >
-                Color:
-            </label>
-            <input
-                v-if="currentChannelFalseColorEnabled"
-                type="text"
-                name="colorStringEntry"
-                :disabled="!currentChannelFalseColorEnabled"
-                v-model="currentChannelFalseColor"
-                @change.prevent="updateCurrentChannelOptions"
-            >
-            <label for="enableMinMax">Show min/max value controls:</label>
-            <input
-                type="checkbox"
-                name="enableMinMax"
-                v-model="currentChannelMinMaxEnabled"
-            >
-            <label
-                v-if="currentChannelMinMaxEnabled"
-                for="minValue"
-            >
-                Min:
-            </label>
-            <input
-                v-if="currentChannelMinMaxEnabled"
-                type="number"
-                step="0.001"
-                min="0"
-                max="1"
-                v-model="currentChannelMin"
-                @change.prevent="updateCurrentChannelOptions"
-            >
-            <label
-                v-if="currentChannelMinMaxEnabled"
-                for="minValue"
-            >
-                Max:
-            </label>
-            <input
-                v-if="currentChannelMinMaxEnabled"
-                type="number"
-                step="0.001"
-                min="0"
-                max="1"
-                v-model="currentChannelMax"
-                @change.prevent="updateCurrentChannelOptions"
-            >
         </div>
     </div>
 </template>
@@ -233,5 +247,45 @@ export default {
 
 .single-index-slider {
     width: 30%;
+}
+
+.single-channel-options {
+    display: flex;
+    flex-direction: row;
+}
+
+.single-channel-options > * {
+    padding-right: 10px;
+    vertical-align: center;
+}
+
+.single-channel-enable {
+    width: 100px;
+}
+
+.single-channel-color-input {
+    width: 100px;
+}
+
+.table-container {
+    max-width: 500px;
+    max-height: 200px;
+    overflow: scroll;
+}
+
+.channel-col {
+    width: 100px;
+}
+
+.enabled-col {
+    width: 70px;
+}
+
+.color-col {
+    width: 125px;
+}
+
+.precision-col {
+    width: 80px;
 }
 </style>
