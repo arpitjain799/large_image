@@ -1,5 +1,16 @@
 # Change Log
 
+## 1.16.3
+
+### Improvements
+- Reduce rest calls to get settings ([953](../../pull/953))
+- Add an endpoint to delete all annotations in a folder ([954](../../pull/954))
+- Support relabeling axes in the multi source ([957](../../pull/957))
+
+### Bug Fixes
+- Harden adding images to the item list ([955](../../pull/955))
+- Fix checking user annotation document length ([956](../../pull/956))
+
 ## 1.16.2
 
 ### Improvements
@@ -11,6 +22,11 @@
 - Fix iterating tiles where the overlap larger than the tile size ([940](../../pull/940))
 - Better ignore tiff directories that aren't part of the pyramid ([943](../../pull/943))
 - Fix an issue with styling frames in ome tiffs ([945](../../pull/945))
+- Better handle large user records in annotation elements ([949](../../pull/949))
+- Harden which output formats are supported ([950](../../pull/950))
+
+### Changes
+- Adjusted rest request logging rates for region endpoint ([948](../../pull/948))
 
 ## 1.16.1
 

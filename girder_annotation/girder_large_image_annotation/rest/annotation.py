@@ -65,6 +65,7 @@ class AnnotationResource(Resource):
         self.route('GET', ('folder', ':id', 'present'), self.existFolderAnnotations)
         self.route('GET', ('folder', ':id', 'create'), self.canCreateFolderAnnotations)
         self.route('PUT', ('folder', ':id', 'access'), self.setFolderAnnotationAccess)
+        self.route('DELETE', ('folder', ':id'), self.deleteFolderAnnotations)
         self.route('GET', ('old',), self.getOldAnnotations)
         self.route('DELETE', ('old',), self.deleteOldAnnotations)
         self.route('GET', ('counts',), self.getItemListAnnotationCounts)
@@ -726,6 +727,27 @@ class AnnotationResource(Resource):
         return {'updated': count}
 
     @autoDescribeRoute(
+        Description('Delete all user-owned annotations from the items in a folder')
+        .param('id', 'The ID of the folder', required=True, paramType='path')
+        .param('recurse', 'Whether or not to retrieve all '
+               'annotations from subfolders', required=False, default=False, dataType='boolean')
+        .errorResponse('ID was invalid.')
+    )
+    @access.user
+    def deleteFolderAnnotations(self, id, params):
+        setResponseTimeLimit(86400)
+        user = self.getCurrentUser()
+        if not user:
+            return []
+        count = 0
+        for annotation in self.getFolderAnnotations(id, params['recurse'], user):
+            annot = Annotation().load(annotation['_id'], user=user, getElements=False)
+            Annotation().remove(annot)
+            count += 1
+
+        return {'deleted': count}
+
+    @autoDescribeRoute(
         Description('Report on old annotations.')
         .param('age', 'The minimum age in days.', required=False,
                dataType='int', default=30)
@@ -766,4 +788,8 @@ class AnnotationResource(Resource):
                 {'_active': {'$ne': False}, 'itemId': item['_id']},
                 user=self.getCurrentUser(), level=AccessType.READ, limit=-1)
             results[itemId] = annotations.count()
+            if Annotationelement().findOne({'element.girderId': itemId}):
+                if 'referenced' not in results:
+                    results['referenced'] = {}
+                results['referenced'][itemId] = True
         return results
