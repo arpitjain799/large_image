@@ -67,7 +67,7 @@ def testTileFromGeotiffs():
     # Check that we read some band data, too
     assert len(tileMetadata['bands']) == 3
     assert tileMetadata['bands'][2]['interpretation'].name == 'green'
-    assert tileMetadata['bands'][2]['max'] == 240 #212.0
+    assert tileMetadata['bands'][2]['max'] == 240  # 212.0
     assert tileMetadata['bands'][2]['min'] == 0.0
 
     # Getting the metadata with a specified projection will be different
@@ -581,6 +581,7 @@ def testVfsCogValidation():
         imagePath, projection='EPSG:3857', encoding='PNG')
     with pytest.raises(TileSourceInefficientError):
         source.validateCOG()
+
 
 def testAlphaProjection():
 
