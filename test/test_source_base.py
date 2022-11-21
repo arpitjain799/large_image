@@ -4,6 +4,7 @@ import re
 import sys
 from pathlib import Path
 
+import numpy
 import PIL.Image
 import pytest
 
@@ -61,15 +62,18 @@ SourceAndFiles = {
         'noread': r'\.(nc|nd2|yml|yaml|json|czi|png|svs|scn)$',
         'skipTiles': r'(sample_image\.ptif|one_layer_missing_tiles|JK-kidney_B-gal_H3_4C_1-500sec\.jp2|extraoverview)'},  # noqa
 }
-if sys.version_info >= (3, 7):
+if sys.version_info >= (3, 7) and sys.version_info < (3, 11):
     SourceAndFiles.update({
         'nd2': {'read': r'\.(nd2)$'},
+    })
+if sys.version_info >= (3, 7) and sys.version_info < (3, 11):
+    SourceAndFiles.update({
         'tifffile': {
             'read': r'',
             'noread': r'\.(nc|nd2|yml|yaml|json|czi|png|jpeg|jp2)$',
         },
     })
-else:
+if sys.version_info < (3, 7):
     # Python 3.6 has an older version of PIL that won't read some of the
     # ome.tif files.
     SourceAndFiles['pil']['noread'] = SourceAndFiles['pil']['noread'][:-1] + '|sample.*ome)'
@@ -563,3 +567,77 @@ def testOutputFormats(format):
     assert (img.width, img.height) == (256, 256)
     img = PIL.Image.open(io.BytesIO(ts.getThumbnail(encoding=format)[0]))
     assert (img.width, img.height) == (256, 256)
+
+
+def testStyleFunctions():
+    imagePath = datastore.fetch('extraoverview.tiff')
+    source = large_image.open(imagePath)
+    region1, _ = source.getRegion(
+        output=dict(maxWidth=50),
+        format=large_image.constants.TILE_FORMAT_NUMPY)
+    sourceFunc2 = large_image.open(imagePath, style={
+        'function': {
+            'name': 'large_image.tilesource.stylefuncs.maskPixelValues',
+            'context': True,
+            'parameters': {'values': [164, 165]}},
+        'bands': []})
+    region2, _ = sourceFunc2.getRegion(
+        output=dict(maxWidth=50),
+        format=large_image.constants.TILE_FORMAT_NUMPY)
+    assert numpy.any(region2 != region1)
+    sourceFunc3 = large_image.open(imagePath, style={
+        'function': {
+            'name': 'large_image.tilesource.stylefuncs.maskPixelValues',
+            'context': True,
+            'parameters': {'values': [[63, 63, 63]]}},
+        'bands': []})
+    region3, _ = sourceFunc3.getRegion(
+        output=dict(maxWidth=50),
+        format=large_image.constants.TILE_FORMAT_NUMPY)
+    assert numpy.any(region3 != region2)
+    sourceFunc4 = large_image.open(imagePath, style={
+        'function': [{
+            'name': 'large_image.tilesource.stylefuncs.maskPixelValues',
+            'context': 'context',
+            'parameters': {'values': [164, 165]}}],
+        'bands': []})
+    region4, _ = sourceFunc4.getRegion(
+        output=dict(maxWidth=50),
+        format=large_image.constants.TILE_FORMAT_NUMPY)
+    assert numpy.all(region4 == region2)
+
+
+def testStyleFunctionsWarnings():
+    imagePath = datastore.fetch('extraoverview.tiff')
+    source = large_image.open(imagePath, style={
+        'function': {
+            'name': 'large_image.tilesource.stylefuncs.maskPixelValues',
+            'context': True,
+            'parameters': {'values': ['bad value']}},
+        'bands': []})
+    region, _ = source.getRegion(
+        output=dict(maxWidth=50),
+        format=large_image.constants.TILE_FORMAT_NUMPY)
+    assert source._styleFunctionWarnings
+
+    source = large_image.open(imagePath, style={
+        'function': {
+            'name': 'no_such_module.maskPixelValues',
+            'context': True,
+            'parameters': {'values': [100]}},
+        'bands': []})
+    region, _ = source.getRegion(
+        output=dict(maxWidth=50),
+        format=large_image.constants.TILE_FORMAT_NUMPY)
+    assert source._styleFunctionWarnings
+
+    source = large_image.open(imagePath, style={
+        'function': {
+            'name': 'large_image.tilesource.stylefuncs.noSuchFunction',
+            'context': True,
+            'parameters': {'values': [100]}},
+        'bands': []})
+    region, _ = source.getRegion(
+        output=dict(maxWidth=50),
+        format=large_image.constants.TILE_FORMAT_NUMPY)
+    assert source._styleFunctionWarnings

@@ -21,6 +21,7 @@ import time
 import cherrypy
 import orjson
 from bson.objectid import ObjectId
+from girder_large_image.rest.tiles import _handleETag
 
 from girder import logger
 from girder.api import access
@@ -46,18 +47,20 @@ class AnnotationResource(Resource):
 
         self.resourceName = 'annotation'
         self.route('GET', (), self.find)
+        self.route('POST', (), self.createAnnotation)
         self.route('GET', ('schema',), self.getAnnotationSchema)
         self.route('GET', ('images',), self.findAnnotatedImages)
         self.route('GET', (':id',), self.getAnnotation)
-        self.route('GET', (':id', 'history'), self.getAnnotationHistoryList)
-        self.route('GET', (':id', 'history', ':version'), self.getAnnotationHistory)
-        self.route('PUT', (':id', 'history', 'revert'), self.revertAnnotationHistory)
-        self.route('POST', (), self.createAnnotation)
-        self.route('POST', (':id', 'copy'), self.copyAnnotation)
         self.route('PUT', (':id',), self.updateAnnotation)
         self.route('DELETE', (':id',), self.deleteAnnotation)
         self.route('GET', (':id', 'access'), self.getAnnotationAccess)
         self.route('PUT', (':id', 'access'), self.updateAnnotationAccess)
+        self.route('POST', (':id', 'copy'), self.copyAnnotation)
+        self.route('GET', (':id', 'history'), self.getAnnotationHistoryList)
+        self.route('GET', (':id', 'history', ':version'), self.getAnnotationHistory)
+        self.route('PUT', (':id', 'history', 'revert'), self.revertAnnotationHistory)
+        self.route('PUT', (':id', 'metadata'), self.setMetadata)
+        self.route('DELETE', (':id', 'metadata'), self.deleteMetadata)
         self.route('GET', ('item', ':id'), self.getItemAnnotations)
         self.route('POST', ('item', ':id'), self.createItemAnnotations)
         self.route('DELETE', ('item', ':id'), self.deleteItemAnnotations)
@@ -66,9 +69,9 @@ class AnnotationResource(Resource):
         self.route('GET', ('folder', ':id', 'create'), self.canCreateFolderAnnotations)
         self.route('PUT', ('folder', ':id', 'access'), self.setFolderAnnotationAccess)
         self.route('DELETE', ('folder', ':id'), self.deleteFolderAnnotations)
+        self.route('GET', ('counts',), self.getItemListAnnotationCounts)
         self.route('GET', ('old',), self.getOldAnnotations)
         self.route('DELETE', ('old',), self.deleteOldAnnotations)
-        self.route('GET', ('counts',), self.getItemListAnnotationCounts)
 
     @describeRoute(
         Description('Search for annotations.')
@@ -88,6 +91,8 @@ class AnnotationResource(Resource):
     @filtermodel(model='annotation', plugin='large_image')
     def find(self, params):
         limit, offset, sort = self.getPagingParameters(params, 'lowerName')
+        if sort and sort[0][0][0] == '[':
+            sort = json.loads(sort[0][0])
         query = {'_active': {'$ne': False}}
         if 'itemId' in params:
             item = Item().load(params.get('itemId'), force=True)
@@ -105,7 +110,8 @@ class AnnotationResource(Resource):
             query['annotation.name'] = params['name']
         fields = list(
             (
-                'annotation.name', 'annotation.description', 'access', 'groups', '_version'
+                'annotation.name', 'annotation.description', 'annotation.attributes',
+                'access', 'groups', '_version'
             ) + Annotation().baseFields)
         return Annotation().findWithPermissions(
             query, sort=sort, fields=fields, user=self.getCurrentUser(),
@@ -163,24 +169,23 @@ class AnnotationResource(Resource):
     @access.public(cookie=True)
     def getAnnotation(self, id, params):
         user = self.getCurrentUser()
-        return self._getAnnotation(user, id, params)
+        annotation = Annotation().load(
+            id, region=params, user=user, level=AccessType.READ, getElements=False)
+        _handleETag('getAnnotation', annotation, params, max_age=86400 * 30)
+        if annotation is None:
+            raise RestException('Annotation not found', 404)
+        return self._getAnnotation(annotation, params)
 
-    def _getAnnotation(self, user, id, params):
+    def _getAnnotation(self, annotation, params):
         """
         Get a generator function that will yield the json of an annotation.
 
-        :param user: the user that needs read access on the annotation and its
-            parent item.
-        :param id: the annotation id.
+        :param annotation: the annotation document without elements.
         :param params: paging and region parameters for the annotation.
         :returns: a function that will return a generator.
         """
         # Set the response time limit to a very long value
         setResponseTimeLimit(86400)
-        annotation = Annotation().load(
-            id, region=params, user=user, level=AccessType.READ, getElements=False)
-        if annotation is None:
-            raise RestException('Annotation not found', 404)
         # Ensure that we have read access to the parent item.  We could fail
         # faster when there are permissions issues if we didn't load the
         # annotation elements before checking the item access permissions.
@@ -504,7 +509,9 @@ class AnnotationResource(Resource):
                 if not first:
                     yield b',\n'
                 try:
-                    annotationGenerator = self._getAnnotation(user, annotation['_id'], {})()
+                    annotation = Annotation().load(
+                        annotation['_id'], user=user, level=AccessType.READ, getElements=False)
+                    annotationGenerator = self._getAnnotation(annotation, {})()
                 except AccessException:
                     continue
                 yield from annotationGenerator
@@ -793,3 +800,47 @@ class AnnotationResource(Resource):
                     results['referenced'] = {}
                 results['referenced'][itemId] = True
         return results
+
+    @access.user(scope=TokenScope.DATA_WRITE)
+    @filtermodel(model='annotation', plugin='large_image')
+    @autoDescribeRoute(
+        Description('Set metadata (annotation.attributes) fields on an annotation.')
+        .responseClass('Annotation')
+        .notes('Set metadata fields to null in order to delete them.')
+        .param('id', 'The ID of the annotation.', paramType='path')
+        .jsonParam('metadata', 'A JSON object containing the metadata keys to add',
+                   paramType='body', requireObject=True)
+        .param('allowNull', 'Whether "null" is allowed as a metadata value.', required=False,
+               dataType='boolean', default=False)
+        .errorResponse(('ID was invalid.',
+                        'Invalid JSON passed in request body.',
+                        'Metadata key name was invalid.'))
+        .errorResponse('Write access was denied for the annotation.', 403)
+    )
+    @loadmodel(model='annotation', plugin='large_image', getElements=False, level=AccessType.WRITE)
+    def setMetadata(self, annotation, metadata, allowNull):
+        return Annotation().setMetadata(annotation, metadata, allowNull=allowNull)
+
+    @access.user(scope=TokenScope.DATA_WRITE)
+    @filtermodel(model='annotation', plugin='large_image')
+    @autoDescribeRoute(
+        Description('Delete metadata (annotation.attributes) fields on an annotation.')
+        .responseClass('Item')
+        .param('id', 'The ID of the annotation.', paramType='path')
+        .jsonParam(
+            'fields', 'A JSON list containing the metadata fields to delete',
+            paramType='body', schema={
+                'type': 'array',
+                'items': {
+                    'type': 'string'
+                }
+            }
+        )
+        .errorResponse(('ID was invalid.',
+                        'Invalid JSON passed in request body.',
+                        'Metadata key name was invalid.'))
+        .errorResponse('Write access was denied for the annotation.', 403)
+    )
+    @loadmodel(model='annotation', plugin='large_image', getElements=False, level=AccessType.WRITE)
+    def deleteMetadata(self, annotation, fields):
+        return Annotation().deleteMetadata(annotation, fields)
