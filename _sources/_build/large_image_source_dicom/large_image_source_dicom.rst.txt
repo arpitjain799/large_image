@@ -1,0 +1,21 @@
+large\_image\_source\_dicom package
+===================================
+
+Submodules
+----------
+
+large\_image\_source\_dicom.girder\_source module
+-------------------------------------------------
+
+.. automodule:: large_image_source_dicom.girder_source
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: large_image_source_dicom
+   :members:
+   :undoc-members:
+   :show-inheritance:
